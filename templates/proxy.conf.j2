@@ -1,0 +1,17 @@
+ProxyRequests Off
+
+<VirtualHost {{ ansible_eth0.ipv4.address }}:80>
+	ServerName {{ inventory_hostname }}
+	ServerAlias *.{{ inventory_hostname }}
+
+	<Proxy *>
+		Order deny,allow
+		Allow from all
+	</Proxy>
+
+	ProxyPreserveHost On
+	ProxyPass / http://{{ destination_server }}/
+	ProxyPassReverse / http://{{ destination_server }}/
+</VirtualHost>
+
+# vim: ts=4 filetype=apache

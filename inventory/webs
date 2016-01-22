@@ -1,0 +1,5 @@
+#!/bin/bash
+
+ssh -l root sql /root/tmp/fetch_webs_wrapper.sh
+
+

@@ -1,0 +1,48 @@
+- hosts: web1:web3
+  serial: 1
+  tasks:
+    - debug: msg="Processing {{ inventory_hostname }} website."
+
+    - name: Check if home dir for web do exists (do not for parked domains and aliases)
+      always_run: true
+      stat: path=/home/{{ inventory_hostname }}
+      register: st
+
+    - name: First sync of data
+      synchronize: src=/home/{{ inventory_hostname }}/ dest=/home/{{ inventory_hostname }}/ compress=yes delete=yes mode=pull 
+      delegate_to: "web4"
+      when: st.stat.exists
+
+    - name: Change database record to point on new web server
+      shell: /root/tmp/change_server.sh {{ inventory_hostname }}
+      delegate_to: "sql"
+
+    - name: Regenerate apache configuration on old server
+      command: /usr/local/sbin/genAPACHE.py
+
+    - name: Syncing deactivated website
+      synchronize: src=/home/{{ inventory_hostname }}/ dest=/home/{{ inventory_hostname }}/ compress=yes delete=yes mode=pull 
+      delegate_to: "web4"
+      when: st.stat.exists
+
+    - name: Activate web on proxy server (to new server)
+      template: src=templates/proxy.conf.j2 dest=/etc/apache2/sites-enabled/{{ inventory_hostname }}.conf 
+      notify: reload apache
+
+    - name: Regenerate apache configuration on new server
+      command: /usr/local/sbin/genAPACHE.py
+      delegate_to: "web4"
+
+    - meta: flush_handlers
+
+    - name: Change IP address of website to new address if in DNS
+      shell: /root/tmp/change_website_dns.sh {{ inventory_hostname }} {{ ansible_eth0.ipv4.address }}
+      delegate_to: "sql"
+
+# for testing
+#    - pause: prompt="Continue with another site?"
+
+  handlers:
+    - name: reload apache
+      service: name=apache2 state=reloaded
+
